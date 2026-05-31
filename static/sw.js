@@ -1,16 +1,9 @@
-// Scramjet Service Worker
-importScripts("/scram/scramjet.all.js");
+importScripts("/uv/uv.bundle.js");
+importScripts("/uv/uv.config.js");
+importScripts("/uv/uv.sw.js");
 
-const { ScramjetServiceWorker } = $scramjetLoadWorker();
-const scramjet = new ScramjetServiceWorker();
-
-async function handleRequest(event) {
-  await scramjet.loadConfig();
-  if (scramjet.route(event)) {
-    return scramjet.fetch(event);
-  }
-}
+const sw = new UVServiceWorker();
 
 self.addEventListener("fetch", (event) => {
-  event.respondWith(handleRequest(event));
+  event.respondWith(sw.fetch(event));
 });

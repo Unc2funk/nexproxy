@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 
-  <script src="/scram/scramjet.all.js"></script>
-  <script src="/baremux/index.js"></script>
+  <script src="/uv/uv.bundle.js"></script>
+  <script src="/uv/uv.config.js"></script>
 
   <style>
     /* ═══════════════════════════════════════════════
@@ -554,14 +554,14 @@
   </div>
 
   <div id="features">
-    <div class="feature">⚡ Scramjet powered</div>
+    <div class="feature">⚡ Ultraviolet powered</div>
     <div class="feature">🌍 Bypasses filters</div>
     <div class="feature">🔒 Encrypted transport</div>
     <div class="feature">🚫 No logs</div>
   </div>
 </div>
 
-<footer id="footer-text">NexProxy · Powered by Scramjet &amp; Wisp</footer>
+<footer id="footer-text">NexProxy · Powered by Ultraviolet &amp; Wisp</footer>
 
 <!-- ═══ SETTINGS PANEL ═══ -->
 <div id="settings-overlay" onclick="closeSettings()"></div>
@@ -977,14 +977,14 @@ function parseInput(raw) {
   return cfg.seUrl + encodeURIComponent(raw);
 }
 
-let scramjet;
+let uv;
 
 function goNavigate() {
   const url = parseInput(document.getElementById("url-input").value);
   if (!url) return;
   setStatus("🔄 Connecting…", "loading");
   try {
-    location.href = scramjet.encodeUrl(url);
+    location.href = __uv$config.prefix + __uv$config.encodeUrl(url);
   } catch {
     setStatus("⚠ Proxy not ready yet, please wait…", "error");
   }
@@ -1014,7 +1014,7 @@ document.addEventListener("keydown", e => {
   }
 });
 
-/* ─── Scramjet Boot ────────────────────────────────── */
+/* ─── Ultraviolet Boot ────────────────────────────────── */
 async function boot() {
   try {
     if (!("serviceWorker" in navigator)) {
@@ -1022,42 +1022,7 @@ async function boot() {
       return;
     }
 
-    const { ScramjetController } = $scramjetLoadController();
-    scramjet = new ScramjetController({
-      prefix: "/scramjet/",
-      files: {
-        wasm:   "/scram/scramjet.wasm.wasm",
-        all:    "/scram/scramjet.all.js",
-        sync:   "/scram/scramjet.sync.js",
-      },
-      codec: {
-        encode: (url) => encodeURIComponent(url),
-        decode: (url) => decodeURIComponent(url),
-      },
-    });
-
     await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    await scramjet.init("/sw.js");
-
-    // Transport setup
-    try {
-      const { BareMuxConnection } = await import("/baremux/index.js");
-      const conn = new BareMuxConnection("/baremux/worker.js");
-      const wsProto = location.protocol === "https:" ? "wss" : "ws";
-      await conn.setTransport("/libcurl/index.js", [
-        { wisp: `${wsProto}://${location.host}/wisp/` }
-      ]);
-    } catch {
-      // libcurl fallback
-      try {
-        const { BareMuxConnection } = await import("/baremux/index.js");
-        const conn = new BareMuxConnection("/baremux/worker.js");
-        const wsProto = location.protocol === "https:" ? "wss" : "ws";
-        await conn.setTransport("/baremux/bare.js", [
-          `${wsProto}://${location.host}/wisp/`
-        ]);
-      } catch {}
-    }
 
     setStatus("✓ Proxy ready — Press / to focus search", "ready");
   } catch (err) {
@@ -1066,10 +1031,46 @@ async function boot() {
   }
 }
 
-/* ─── Init ─────────────────────────────────────────── */
-loadSettings();
-applySettings();
-boot();
+/* ─── Deep Reset ───────────────────────────────────── */
+if (location.search.includes("reset=true")) {
+  (async () => {
+    setStatus("🧹 Performing deep reset...", "loading");
+    
+    // 1. Unregister all Service Workers
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        await reg.unregister();
+        console.log("Unregistered SW");
+      }
+    }
+    
+    // 2. Clear all IndexedDB databases
+    if (indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      for (const db of dbs) {
+        indexedDB.deleteDatabase(db.name);
+        console.log("Deleted IDB", db.name);
+      }
+    } else {
+      // Fallback known names
+      indexedDB.deleteDatabase("bare-mux");
+    }
+
+    // 3. Clear localStorage config
+    localStorage.removeItem("nexproxy_cfg");
+    
+    setStatus("✅ Reset complete! Reloading...", "ready");
+    setTimeout(() => {
+      location.href = location.pathname; // strip query string
+    }, 1500);
+  })();
+} else {
+  // Normal boot
+  loadSettings();
+  applySettings();
+  boot();
+}
 </script>
 </body>
 </html>
