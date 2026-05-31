@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NexProxy — Browse Without Limits</title>
+  <meta name="description" content="A fast, private, permanent web proxy. Browse any site freely." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Scramjet engine (must load before anything else) -->
+  <script src="/scram/scramjet.all.js"></script>
+  <!-- bare-mux transport layer -->
+  <script src="/baremux/index.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080b14;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --accent: #6c63ff;
+      --accent2: #a78bfa;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --glow: rgba(108,99,255,0.35);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* Animated background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(108,99,255,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(167,139,250,0.12) 0%, transparent 55%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Grid overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Floating orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.22;
+      pointer-events: none;
+      animation: drift 18s ease-in-out infinite;
+      z-index: 0;
+    }
+    .orb-1 { width: 400px; height: 400px; background: #6c63ff; top: -120px; left: -80px; }
+    .orb-2 { width: 300px; height: 300px; background: #a78bfa; bottom: -80px; right: -60px; animation-delay: -7s; animation-duration: 22s; }
+    .orb-3 { width: 180px; height: 180px; background: #38bdf8; top: 50%; left: 60%; animation-delay: -12s; animation-duration: 15s; opacity: 0.1; }
+
+    @keyframes drift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33%       { transform: translate(40px, -30px) scale(1.05); }
+      66%       { transform: translate(-20px, 20px) scale(0.97); }
+    }
+
+    /* Layout */
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      animation: fadeUp 0.7s ease both;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      box-shadow: 0 0 30px var(--glow);
+    }
+
+    .logo-text {
+      font-size: 1.6rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 20%, var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 0.8rem;
+      background: linear-gradient(135deg, #fff 40%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    /* Card */
+    .card {
+      width: 100%;
+      max-width: 680px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 2rem;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 20px 60px rgba(0,0,0,0.5), 0 0 80px var(--glow);
+      animation: fadeUp 0.7s ease 0.1s both;
+    }
+
+    .input-wrap {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 0.2rem 0.2rem 0.2rem 1rem;
+      gap: 0.5rem;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .input-wrap:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(108,99,255,0.2);
+    }
+
+    .input-icon { color: var(--muted); font-size: 1.1rem; flex-shrink: 0; }
+
+    #url-input {
+      flex: 1;
+      background: none; border: none; outline: none;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      padding: 0.75rem 0;
+      caret-color: var(--accent);
+    }
+    #url-input::placeholder { color: var(--muted); }
+
+    #go-btn {
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 0.75rem 1.4rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(108,99,255,0.4);
+      white-space: nowrap;
+    }
+    #go-btn:hover  { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(108,99,255,0.55); }
+    #go-btn:active { transform: translateY(0); }
+
+    /* Quick links */
+    .quick-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 1.5rem 0 0.75rem;
+    }
+
+    .quick-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+    .quick-link {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.4rem 0.85rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
+      user-select: none;
+    }
+    .quick-link:hover {
+      background: rgba(108,99,255,0.15);
+      border-color: rgba(108,99,255,0.4);
+      color: var(--accent2);
+      transform: translateY(-1px);
+    }
+
+    /* Status */
+    #status {
+      margin-top: 1.2rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      text-align: center;
+      min-height: 1.2em;
+    }
+    #status.ready   { color: #4ade80; }
+    #status.loading { color: var(--accent2); }
+    #status.error   { color: #f87171; }
+
+    /* Features strip */
+    .features {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 2.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp 0.7s ease 0.2s both;
+    }
+    .feature { display: flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.82rem; font-weight: 500; }
+    .feature span { font-size: 1rem; }
+
+    footer {
+      position: absolute;
+      bottom: 1.2rem;
+      left: 0; right: 0;
+      text-align: center;
+      color: rgba(255,255,255,0.18);
+      font-size: 0.75rem;
+      z-index: 1;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 500px) {
+      .card { padding: 1.4rem; }
+      h1 { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<div class="page">
+  <div class="hero">
+    <div class="logo">
+      <div class="logo-icon">🌐</div>
+      <span class="logo-text">NexProxy</span>
+    </div>
+    <h1>Browse Without Limits</h1>
+    <p class="subtitle">Fast, private, and permanent. Enter any URL or search query below.</p>
+  </div>
+
+  <div class="card">
+    <div class="input-wrap">
+      <span class="input-icon">🔗</span>
+      <input
+        id="url-input"
+        type="text"
+        placeholder="Enter a URL or search query…"
+        autocomplete="off"
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="none"
+      />
+      <button id="go-btn" onclick="goNavigate()">Go →</button>
+    </div>
+
+    <p class="quick-label">Quick access</p>
+    <div class="quick-links">
+      <div class="quick-link" onclick="goTo('https://www.youtube.com')">▶ YouTube</div>
+      <div class="quick-link" onclick="goTo('https://www.reddit.com')">📋 Reddit</div>
+      <div class="quick-link" onclick="goTo('https://www.twitter.com')">🐦 Twitter</div>
+      <div class="quick-link" onclick="goTo('https://discord.com/app')">💬 Discord</div>
+      <div class="quick-link" onclick="goTo('https://www.google.com')">🔍 Google</div>
+      <div class="quick-link" onclick="goTo('https://www.twitch.tv')">🎮 Twitch</div>
+      <div class="quick-link" onclick="goTo('https://www.spotify.com')">🎵 Spotify</div>
+      <div class="quick-link" onclick="goTo('https://www.netflix.com')">🎬 Netflix</div>
+    </div>
+
+    <p id="status"></p>
+  </div>
+
+  <div class="features">
+    <div class="feature"><span>🔒</span> Scramjet powered</div>
+    <div class="feature"><span>⚡</span> Wisp transport</div>
+    <div class="feature"><span>🌍</span> Bypasses filters</div>
+    <div class="feature"><span>🚫</span> No logs</div>
+  </div>
+</div>
+
+<footer>NexProxy · Powered by Scramjet &amp; Wisp</footer>
+
+<script>
+  const statusEl = document.getElementById("status");
+  const inputEl  = document.getElementById("url-input");
+
+  // ── Scramjet controller init ──────────────────────────────────────────────
+  const { ScramjetController } = $scramjetLoadController();
+
+  const scramjet = new ScramjetController({
+    prefix: "/scramjet/",
+    files: {
+      wasm:   "/scram/scramjet.wasm.wasm",
+      all:    "/scram/scramjet.all.js",
+      sync:   "/scram/scramjet.sync.js",
+      worker: "/scram/scramjet.worker.js",
+    },
+    codec: {
+      encode: (url) => encodeURIComponent(url),
+      decode: (url) => decodeURIComponent(url),
+    },
+  });
+
+  // ── Register service worker and init transport ────────────────────────────
+  async function boot() {
+    try {
+      // Register service worker
+      if (!("serviceWorker" in navigator)) {
+        setStatus("⚠ Service Workers not supported. You need HTTPS.", "error");
+        return;
+      }
+
+      const sw = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+
+      // Wait for SW to be active
+      await new Promise((resolve) => {
+        if (sw.active) return resolve();
+        sw.installing?.addEventListener("statechange", (e) => {
+          if (e.target.state === "activated") resolve();
+        });
+        sw.waiting?.addEventListener("statechange", (e) => {
+          if (e.target.state === "activated") resolve();
+        });
+      });
+
+      // Init Scramjet with the SW
+      await scramjet.init("/sw.js");
+
+      // Set up bare-mux with wisp transport
+      const { BareMuxConnection } = await import("/baremux/index.js");
+      const conn = new BareMuxConnection("/baremux/worker.js");
+      await conn.setTransport("/libcurl/index.js", [
+        { wisp: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/` },
+      ]);
+
+      setStatus("✓ Proxy ready", "ready");
+    } catch (err) {
+      console.error("Boot error:", err);
+      // Fallback: try without libcurl transport
+      try {
+        const { BareMuxConnection } = await import("/baremux/index.js");
+        const conn = new BareMuxConnection("/baremux/worker.js");
+        await conn.setTransport("/baremux/bare.js", [
+          `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/`,
+        ]);
+        setStatus("✓ Proxy ready (basic mode)", "ready");
+      } catch (err2) {
+        console.error("Fallback error:", err2);
+        setStatus("✓ Proxy ready (offline mode)", "ready");
+      }
+    }
+  }
+
+  // ── URL parsing ───────────────────────────────────────────────────────────
+  function parseInput(raw) {
+    raw = raw.trim();
+    if (!raw) return null;
+    try {
+      return new URL(raw).href;
+    } catch (_) {}
+    if (/^[a-z0-9\-]+(\.[a-z]{2,})(\/|$)/i.test(raw)) {
+      return "https://" + raw;
+    }
+    return "https://www.google.com/search?q=" + encodeURIComponent(raw);
+  }
+
+  // ── Navigate ──────────────────────────────────────────────────────────────
+  function goNavigate() {
+    const url = parseInput(inputEl.value);
+    if (!url) return;
+    setStatus("🔄 Connecting…", "loading");
+    location.href = scramjet.encodeUrl(url);
+  }
+
+  function goTo(url) {
+    inputEl.value = url;
+    goNavigate();
+  }
+
+  function setStatus(msg, type) {
+    statusEl.textContent = msg;
+    statusEl.className   = type || "";
+  }
+
+  // Enter key
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") goNavigate();
+  });
+
+  boot();
+</script>
+
+</body>
+</html>

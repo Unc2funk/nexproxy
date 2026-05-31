@@ -1,0 +1,21 @@
+{
+  "name": "nexproxy",
+  "version": "1.0.0",
+  "description": "A permanent web proxy powered by Scramjet",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "@mercuryworkshop/bare-mux": "latest",
+    "@mercuryworkshop/libcurl-transport": "latest",
+    "@mercuryworkshop/scramjet": "latest",
+    "@mercuryworkshop/wisp-js": "latest",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
