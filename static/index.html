@@ -1,447 +1,1075 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NexProxy — Browse Without Limits</title>
-  <meta name="description" content="A fast, private, permanent web proxy. Browse any site freely." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NexProxy</title>
+  <meta name="description" content="Your personal web proxy. Browse anything, anywhere."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 
-  <!-- Scramjet engine (must load before anything else) -->
   <script src="/scram/scramjet.all.js"></script>
-  <!-- bare-mux transport layer -->
   <script src="/baremux/index.js"></script>
 
   <style>
+    /* ═══════════════════════════════════════════════
+       BASE & RESET
+    ═══════════════════════════════════════════════ */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #080b14;
-      --surface: rgba(255,255,255,0.04);
-      --border: rgba(255,255,255,0.08);
-      --accent: #6c63ff;
-      --accent2: #a78bfa;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --glow: rgba(108,99,255,0.35);
+      --accent:   #6c63ff;
+      --accent2:  #a78bfa;
+      --accentRGB: 108,99,255;
+      --bg:       #080b14;
+      --bgRGB:    8,11,20;
+      --surface:  rgba(255,255,255,0.04);
+      --border:   rgba(255,255,255,0.08);
+      --text:     #f1f5f9;
+      --muted:    #94a3b8;
+      --glow:     rgba(var(--accentRGB),0.35);
+      --radius:   16px;
     }
 
-    html, body {
-      height: 100%;
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      overflow-x: hidden;
+    html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+    /* ═══════════════════════════════════════════════
+       BACKGROUND SYSTEM
+    ═══════════════════════════════════════════════ */
+    #bg-layer {
+      position: fixed; inset: 0; z-index: 0;
+      transition: background 0.5s;
     }
 
-    /* Animated background */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
+    /* ── Orbs (default) ── */
+    body.bg-orbs #bg-layer {
       background:
-        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(108,99,255,0.18) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(167,139,250,0.12) 0%, transparent 55%);
-      pointer-events: none;
-      z-index: 0;
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(var(--accentRGB),0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(var(--accentRGB),0.12) 0%, transparent 55%),
+        var(--bg);
+    }
+    .orb {
+      position: fixed; border-radius: 50%; filter: blur(90px);
+      pointer-events: none; animation: drift 20s ease-in-out infinite; z-index: 0;
+    }
+    body.bg-orbs .orb { opacity: 0.22; }
+    body:not(.bg-orbs) .orb { opacity: 0; }
+    .orb-1 { width:500px;height:500px;background:var(--accent);top:-150px;left:-100px;animation-delay:0s; }
+    .orb-2 { width:350px;height:350px;background:var(--accent2);bottom:-100px;right:-80px;animation-delay:-8s;animation-duration:24s; }
+    .orb-3 { width:220px;height:220px;background:#38bdf8;top:45%;left:58%;animation-delay:-14s;animation-duration:16s;opacity:.10!important; }
+
+    @keyframes drift {
+      0%,100%{ transform:translate(0,0) scale(1); }
+      33%    { transform:translate(50px,-40px) scale(1.06); }
+      66%    { transform:translate(-25px,25px) scale(0.96); }
     }
 
-    /* Grid overlay */
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
+    /* ── Grid ── */
+    #grid-overlay {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
       background-image:
         linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
       background-size: 60px 60px;
-      pointer-events: none;
-      z-index: 0;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+    body.bg-orbs #grid-overlay,
+    body.bg-grid  #grid-overlay { opacity: 1; }
+
+    /* ── Stars ── */
+    #stars-layer {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      opacity: 0; transition: opacity 0.5s;
+    }
+    body.bg-stars #stars-layer { opacity: 1; }
+    body.bg-stars #bg-layer { background: #030508; }
+    .star {
+      position: absolute; border-radius: 50%;
+      background: #fff; animation: twinkle var(--dur,3s) ease-in-out infinite var(--del,0s);
+    }
+    @keyframes twinkle {
+      0%,100%{ opacity: var(--lo,.2); transform: scale(1); }
+      50%    { opacity: var(--hi,.8); transform: scale(1.3); }
     }
 
-    /* Floating orbs */
-    .orb {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.22;
-      pointer-events: none;
-      animation: drift 18s ease-in-out infinite;
-      z-index: 0;
+    /* ── Waves ── */
+    body.bg-waves #bg-layer {
+      background: linear-gradient(180deg, #060912 0%, #0d1225 100%);
     }
-    .orb-1 { width: 400px; height: 400px; background: #6c63ff; top: -120px; left: -80px; }
-    .orb-2 { width: 300px; height: 300px; background: #a78bfa; bottom: -80px; right: -60px; animation-delay: -7s; animation-duration: 22s; }
-    .orb-3 { width: 180px; height: 180px; background: #38bdf8; top: 50%; left: 60%; animation-delay: -12s; animation-duration: 15s; opacity: 0.1; }
-
-    @keyframes drift {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      33%       { transform: translate(40px, -30px) scale(1.05); }
-      66%       { transform: translate(-20px, 20px) scale(0.97); }
+    #waves-layer {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 0; pointer-events: none;
+      opacity: 0; transition: opacity 0.5s;
     }
+    body.bg-waves #waves-layer { opacity: 1; }
 
-    /* Layout */
+    /* ── Solid ── */
+    body.bg-solid #bg-layer { background: var(--bg); }
+
+    /* ═══════════════════════════════════════════════
+       LAYOUT
+    ═══════════════════════════════════════════════ */
     .page {
-      position: relative;
-      z-index: 1;
+      position: relative; z-index: 1;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
       padding: 2rem;
     }
 
-    /* Hero */
+    /* ═══════════════════════════════════════════════
+       HERO
+    ═══════════════════════════════════════════════ */
     .hero {
-      text-align: center;
-      margin-bottom: 2.5rem;
-      animation: fadeUp 0.7s ease both;
+      text-align: center; margin-bottom: 2.5rem;
+      animation: fadeUp .7s ease both;
     }
 
-    .logo {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.6rem;
-      margin-bottom: 1.4rem;
+    .logo-wrap {
+      display: inline-flex; align-items: center; gap: .7rem;
+      margin-bottom: 1.2rem; cursor: default;
     }
-
-    .logo-icon {
-      width: 44px; height: 44px;
+    #site-icon-display {
+      width: 52px; height: 52px;
       background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 12px;
+      border-radius: 16px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.4rem;
-      box-shadow: 0 0 30px var(--glow);
-    }
-
-    .logo-text {
       font-size: 1.6rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, #fff 20%, var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      letter-spacing: -0.02em;
+      box-shadow: 0 0 40px var(--glow);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .logo-wrap:hover #site-icon-display { transform: scale(1.08) rotate(-4deg); box-shadow: 0 0 60px var(--glow); }
+
+    #site-name-display {
+      font-size: 1.9rem; font-weight: 900;
+      background: linear-gradient(135deg, #fff 30%, var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; letter-spacing: -.03em;
+      transition: opacity .3s;
     }
 
-    h1 {
-      font-size: clamp(2rem, 5vw, 3.2rem);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.15;
-      margin-bottom: 0.8rem;
+    .tagline {
+      font-size: clamp(1.6rem,4vw,2.6rem); font-weight: 800;
+      letter-spacing: -.03em; line-height: 1.15; margin-bottom: .7rem;
       background: linear-gradient(135deg, #fff 40%, var(--accent2) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
+    .subtitle { color: var(--muted); font-size: 1rem; font-weight: 400; }
 
-    .subtitle {
-      color: var(--muted);
-      font-size: 1.05rem;
-    }
-
-    /* Card */
+    /* ═══════════════════════════════════════════════
+       SEARCH CARD
+    ═══════════════════════════════════════════════ */
     .card {
-      width: 100%;
-      max-width: 680px;
+      width: 100%; max-width: 700px;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 2rem;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 20px 60px rgba(0,0,0,0.5), 0 0 80px var(--glow);
-      animation: fadeUp 0.7s ease 0.1s both;
+      border-radius: 28px;
+      padding: 2rem 2rem 1.8rem;
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 24px 70px rgba(0,0,0,.55), 0 0 100px var(--glow);
+      animation: fadeUp .7s ease .1s both;
     }
 
     .input-wrap {
-      display: flex;
-      align-items: center;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 0.2rem 0.2rem 0.2rem 1rem;
-      gap: 0.5rem;
-      transition: border-color 0.25s, box-shadow 0.25s;
+      display: flex; align-items: center;
+      background: rgba(255,255,255,0.065);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: .25rem .25rem .25rem 1.1rem;
+      gap: .6rem;
+      transition: border-color .2s, box-shadow .2s;
     }
     .input-wrap:focus-within {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(108,99,255,0.2);
+      box-shadow: 0 0 0 4px rgba(var(--accentRGB),.18);
     }
-
-    .input-icon { color: var(--muted); font-size: 1.1rem; flex-shrink: 0; }
+    .input-icon { color: var(--muted); font-size: 1.2rem; flex-shrink: 0; }
 
     #url-input {
-      flex: 1;
-      background: none; border: none; outline: none;
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: 1rem;
-      padding: 0.75rem 0;
+      flex: 1; background: none; border: none; outline: none;
+      color: var(--text); font-family: 'Inter',sans-serif;
+      font-size: 1.05rem; padding: .8rem 0;
       caret-color: var(--accent);
     }
     #url-input::placeholder { color: var(--muted); }
 
     #go-btn {
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      padding: 0.75rem 1.4rem;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
-      box-shadow: 0 4px 20px rgba(108,99,255,0.4);
-      white-space: nowrap;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff; border: none; border-radius: 12px;
+      padding: .8rem 1.6rem;
+      font-family: 'Inter',sans-serif; font-size: .98rem; font-weight: 700;
+      cursor: pointer; white-space: nowrap; letter-spacing: .01em;
+      transition: opacity .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 24px rgba(var(--accentRGB),.45);
     }
-    #go-btn:hover  { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(108,99,255,0.55); }
-    #go-btn:active { transform: translateY(0); }
+    #go-btn:hover  { opacity:.9; transform:translateY(-2px); box-shadow:0 8px 32px rgba(var(--accentRGB),.6); }
+    #go-btn:active { transform:translateY(0); }
 
-    /* Quick links */
-    .quick-label {
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin: 1.5rem 0 0.75rem;
+    /* ── Quick Links ── */
+    .ql-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 1.6rem 0 .8rem;
     }
+    .ql-label {
+      color: var(--muted); font-size: .75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .1em;
+    }
+    .ql-edit-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: .8rem; font-weight: 500; padding: .2rem .5rem;
+      border-radius: 6px; transition: color .2s, background .2s;
+    }
+    .ql-edit-btn:hover { color: var(--accent2); background: rgba(var(--accentRGB),.1); }
 
-    .quick-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    #quick-links { display: flex; flex-wrap: wrap; gap: .5rem; }
 
-    .quick-link {
-      background: rgba(255,255,255,0.05);
+    .ql-chip {
+      background: rgba(255,255,255,0.055);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.4rem 0.85rem;
-      color: var(--muted);
-      font-size: 0.85rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
-      user-select: none;
+      border-radius: 10px; padding: .42rem .9rem;
+      color: var(--muted); font-size: .85rem; font-weight: 500;
+      cursor: pointer; user-select: none;
+      transition: background .2s, color .2s, border-color .2s, transform .15s;
+      display: flex; align-items: center; gap: .35rem;
     }
-    .quick-link:hover {
-      background: rgba(108,99,255,0.15);
-      border-color: rgba(108,99,255,0.4);
-      color: var(--accent2);
-      transform: translateY(-1px);
+    .ql-chip:hover {
+      background: rgba(var(--accentRGB),.15);
+      border-color: rgba(var(--accentRGB),.4);
+      color: var(--accent2); transform: translateY(-2px);
     }
 
-    /* Status */
     #status {
-      margin-top: 1.2rem;
-      font-size: 0.82rem;
-      font-weight: 500;
-      text-align: center;
-      min-height: 1.2em;
+      margin-top: 1rem; font-size: .82rem; font-weight: 500;
+      text-align: center; min-height: 1.2em;
     }
     #status.ready   { color: #4ade80; }
     #status.loading { color: var(--accent2); }
     #status.error   { color: #f87171; }
 
-    /* Features strip */
-    .features {
-      display: flex;
-      gap: 1.5rem;
-      margin-top: 2.5rem;
-      flex-wrap: wrap;
-      justify-content: center;
-      animation: fadeUp 0.7s ease 0.2s both;
+    /* ── Feature badges ── */
+    #features {
+      display: flex; gap: 1.5rem; margin-top: 2.5rem;
+      flex-wrap: wrap; justify-content: center;
+      animation: fadeUp .7s ease .2s both;
+      transition: opacity .3s;
     }
-    .feature { display: flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.82rem; font-weight: 500; }
-    .feature span { font-size: 1rem; }
+    .feature { display:flex;align-items:center;gap:.45rem;color:var(--muted);font-size:.8rem;font-weight:500; }
 
+    /* ═══════════════════════════════════════════════
+       SETTINGS BUTTON
+    ═══════════════════════════════════════════════ */
+    #settings-btn {
+      position: fixed; top: 1.2rem; right: 1.2rem; z-index: 100;
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 1.2rem;
+      transition: background .2s, transform .2s, border-color .2s;
+      backdrop-filter: blur(10px);
+    }
+    #settings-btn:hover { background: rgba(var(--accentRGB),.15); border-color: rgba(var(--accentRGB),.4); transform: rotate(30deg); }
+
+    /* ═══════════════════════════════════════════════
+       SETTINGS PANEL
+    ═══════════════════════════════════════════════ */
+    #settings-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0); pointer-events: none;
+      transition: background .3s;
+    }
+    #settings-overlay.open { background: rgba(0,0,0,.5); pointer-events: all; }
+
+    #settings-panel {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 360px; max-width: 95vw;
+      background: #0e1221;
+      border-left: 1px solid var(--border);
+      padding: 1.6rem;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform .35s cubic-bezier(.4,0,.2,1);
+      z-index: 201;
+    }
+    #settings-panel.open { transform: translateX(0); }
+
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.8rem;
+    }
+    .panel-title { font-size: 1.15rem; font-weight: 700; }
+    #close-settings {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 1.4rem; line-height: 1; padding: .2rem;
+      transition: color .2s;
+    }
+    #close-settings:hover { color: var(--text); }
+
+    /* Settings sections */
+    .s-section { margin-bottom: 1.8rem; }
+    .s-label {
+      font-size: .72rem; font-weight: 600; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: .7rem;
+    }
+
+    .s-input {
+      width: 100%; background: rgba(255,255,255,.06);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: .65rem .9rem; color: var(--text);
+      font-family: 'Inter',sans-serif; font-size: .9rem; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .s-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accentRGB),.15); }
+
+    /* Color swatches */
+    .color-grid { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .color-swatch {
+      width: 36px; height: 36px; border-radius: 10px;
+      cursor: pointer; border: 2px solid transparent;
+      transition: transform .15s, border-color .15s, box-shadow .15s;
+      position: relative;
+    }
+    .color-swatch:hover { transform: scale(1.1); }
+    .color-swatch.active { border-color: #fff; box-shadow: 0 0 12px rgba(255,255,255,.3); }
+    .color-swatch-custom {
+      width: 36px; height: 36px; border-radius: 10px;
+      overflow: hidden; cursor: pointer;
+      border: 2px solid var(--border);
+      transition: transform .15s;
+      background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+    }
+    .color-swatch-custom:hover { transform: scale(1.1); }
+    .color-swatch-custom input[type="color"] {
+      opacity: 0; width: 100%; height: 100%; cursor: pointer; border: none;
+    }
+
+    /* Background style pills */
+    .bg-pills { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .bg-pill {
+      padding: .4rem .85rem; border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--muted); font-size: .82rem; font-weight: 500;
+      cursor: pointer; transition: all .2s; user-select: none;
+    }
+    .bg-pill.active, .bg-pill:hover {
+      background: rgba(var(--accentRGB),.15);
+      border-color: rgba(var(--accentRGB),.45); color: var(--accent2);
+    }
+
+    /* Search engine */
+    .se-pills { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .se-pill {
+      padding: .4rem .85rem; border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--muted); font-size: .82rem; font-weight: 500;
+      cursor: pointer; transition: all .2s; user-select: none;
+    }
+    .se-pill.active, .se-pill:hover {
+      background: rgba(var(--accentRGB),.15);
+      border-color: rgba(var(--accentRGB),.45); color: var(--accent2);
+    }
+
+    /* Quick links editor */
+    #ql-editor-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .7rem; }
+    .ql-editor-row {
+      display: flex; align-items: center; gap: .4rem;
+    }
+    .ql-editor-emoji {
+      width: 40px; background: rgba(255,255,255,.06); border: 1px solid var(--border);
+      border-radius: 8px; padding: .5rem; color: var(--text); font-size: .9rem;
+      font-family: 'Inter',sans-serif; text-align: center; outline: none;
+    }
+    .ql-editor-name {
+      flex: 1; background: rgba(255,255,255,.06); border: 1px solid var(--border);
+      border-radius: 8px; padding: .5rem .7rem; color: var(--text); font-size: .85rem;
+      font-family: 'Inter',sans-serif; outline: none;
+    }
+    .ql-editor-url {
+      flex: 2; background: rgba(255,255,255,.06); border: 1px solid var(--border);
+      border-radius: 8px; padding: .5rem .7rem; color: var(--text); font-size: .85rem;
+      font-family: 'Inter',sans-serif; outline: none;
+    }
+    .ql-editor-emoji:focus, .ql-editor-name:focus, .ql-editor-url:focus {
+      border-color: var(--accent);
+    }
+    .ql-delete-btn {
+      background: none; border: none; color: #f87171; cursor: pointer;
+      font-size: 1.1rem; padding: .3rem; border-radius: 6px;
+      transition: background .2s;
+    }
+    .ql-delete-btn:hover { background: rgba(248,113,113,.15); }
+
+    .s-btn {
+      width: 100%; padding: .65rem;
+      background: rgba(var(--accentRGB),.12);
+      border: 1px dashed rgba(var(--accentRGB),.4);
+      border-radius: 10px; color: var(--accent2); font-size: .85rem; font-weight: 600;
+      cursor: pointer; font-family: 'Inter',sans-serif;
+      transition: background .2s, border-color .2s;
+    }
+    .s-btn:hover { background: rgba(var(--accentRGB),.2); border-color: rgba(var(--accentRGB),.7); }
+
+    .s-save-btn {
+      width: 100%; padding: .8rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 12px;
+      color: #fff; font-size: .95rem; font-weight: 700;
+      cursor: pointer; font-family: 'Inter',sans-serif;
+      margin-top: .5rem;
+      box-shadow: 0 4px 20px rgba(var(--accentRGB),.4);
+      transition: opacity .2s, transform .15s;
+    }
+    .s-save-btn:hover { opacity: .9; transform: translateY(-1px); }
+
+    .s-reset-btn {
+      width: 100%; padding: .6rem; margin-top: .5rem;
+      background: none; border: 1px solid rgba(248,113,113,.3);
+      border-radius: 10px; color: #f87171; font-size: .82rem; font-weight: 500;
+      cursor: pointer; font-family: 'Inter',sans-serif;
+      transition: background .2s;
+    }
+    .s-reset-btn:hover { background: rgba(248,113,113,.1); }
+
+    /* Toggle */
+    .toggle-row { display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem; }
+    .toggle-label { font-size:.88rem;color:var(--text); }
+    .toggle {
+      position:relative;width:44px;height:24px;
+      background:rgba(255,255,255,.12);border-radius:12px;cursor:pointer;
+      transition:background .25s;
+    }
+    .toggle.on { background:var(--accent); }
+    .toggle::after {
+      content:'';position:absolute;top:3px;left:3px;
+      width:18px;height:18px;border-radius:50%;background:#fff;
+      transition:left .25s; box-shadow:0 1px 3px rgba(0,0,0,.3);
+    }
+    .toggle.on::after { left:23px; }
+
+    /* Divider */
+    .s-divider { height:1px;background:var(--border);margin:1.4rem 0; }
+
+    /* ═══════════════════════════════════════════════
+       QUICK LINKS EDIT MODAL
+    ═══════════════════════════════════════════════ */
+    #ql-modal-overlay {
+      position:fixed;inset:0;z-index:300;
+      background:rgba(0,0,0,.6);
+      display:flex;align-items:center;justify-content:center;
+      opacity:0;pointer-events:none;transition:opacity .25s;
+    }
+    #ql-modal-overlay.open { opacity:1;pointer-events:all; }
+    #ql-modal {
+      background:#0e1221;border:1px solid var(--border);
+      border-radius:20px;padding:1.8rem;width:480px;max-width:92vw;
+      max-height:80vh;overflow-y:auto;
+      transform:scale(.95);transition:transform .25s;
+    }
+    #ql-modal-overlay.open #ql-modal { transform:scale(1); }
+
+    /* ═══════════════════════════════════════════════
+       FOOTER & ANIMATIONS
+    ═══════════════════════════════════════════════ */
     footer {
-      position: absolute;
-      bottom: 1.2rem;
-      left: 0; right: 0;
-      text-align: center;
-      color: rgba(255,255,255,0.18);
-      font-size: 0.75rem;
-      z-index: 1;
+      position:fixed;bottom:1rem;left:0;right:0;text-align:center;
+      color:rgba(255,255,255,.18);font-size:.72rem;z-index:1;
     }
 
     @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from { opacity:0;transform:translateY(22px); }
+      to   { opacity:1;transform:translateY(0); }
     }
 
-    @media (max-width: 500px) {
-      .card { padding: 1.4rem; }
-      h1 { font-size: 1.8rem; }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width:6px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12);border-radius:3px; }
+    ::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.2); }
+
+    @media(max-width:500px) {
+      .card{padding:1.4rem;}
+      .tagline{font-size:1.7rem;}
+      #settings-panel{width:100%;max-width:100%;}
     }
   </style>
 </head>
-<body>
+<body class="bg-orbs">
 
+<!-- Background layers -->
+<div id="bg-layer"></div>
+<div id="grid-overlay"></div>
+<div id="stars-layer"></div>
+<svg id="waves-layer" viewBox="0 0 1440 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="width:100%;height:200px">
+  <path fill="rgba(108,99,255,0.06)" d="M0,100 C360,180 720,20 1440,100 L1440,200 L0,200Z">
+    <animate attributeName="d" dur="8s" repeatCount="indefinite"
+      values="M0,100 C360,180 720,20 1440,100 L1440,200 L0,200Z;
+              M0,80  C360,20  720,180 1440,80  L1440,200 L0,200Z;
+              M0,100 C360,180 720,20 1440,100 L1440,200 L0,200Z"/>
+  </path>
+  <path fill="rgba(167,139,250,0.04)" d="M0,130 C480,60 960,200 1440,130 L1440,200 L0,200Z">
+    <animate attributeName="d" dur="12s" repeatCount="indefinite"
+      values="M0,130 C480,60  960,200 1440,130 L1440,200 L0,200Z;
+              M0,150 C480,220 960,60  1440,150 L1440,200 L0,200Z;
+              M0,130 C480,60  960,200 1440,130 L1440,200 L0,200Z"/>
+  </path>
+</svg>
 <div class="orb orb-1"></div>
 <div class="orb orb-2"></div>
 <div class="orb orb-3"></div>
 
+<!-- Settings button -->
+<button id="settings-btn" title="Personalize">⚙️</button>
+
+<!-- Main page -->
 <div class="page">
   <div class="hero">
-    <div class="logo">
-      <div class="logo-icon">🌐</div>
-      <span class="logo-text">NexProxy</span>
+    <div class="logo-wrap">
+      <div id="site-icon-display">🌐</div>
+      <span id="site-name-display">NexProxy</span>
     </div>
-    <h1>Browse Without Limits</h1>
-    <p class="subtitle">Fast, private, and permanent. Enter any URL or search query below.</p>
+    <h1 class="tagline" id="tagline-display">Browse Without Limits</h1>
+    <p class="subtitle" id="subtitle-display">Fast, private, and permanent. Enter any URL or search below.</p>
   </div>
 
   <div class="card">
     <div class="input-wrap">
       <span class="input-icon">🔗</span>
-      <input
-        id="url-input"
-        type="text"
+      <input id="url-input" type="text"
         placeholder="Enter a URL or search query…"
-        autocomplete="off"
-        spellcheck="false"
-        autocorrect="off"
-        autocapitalize="none"
-      />
-      <button id="go-btn" onclick="goNavigate()">Go →</button>
+        autocomplete="off" spellcheck="false"
+        autocorrect="off" autocapitalize="none"/>
+      <button id="go-btn">Go →</button>
     </div>
 
-    <p class="quick-label">Quick access</p>
-    <div class="quick-links">
-      <div class="quick-link" onclick="goTo('https://www.youtube.com')">▶ YouTube</div>
-      <div class="quick-link" onclick="goTo('https://www.reddit.com')">📋 Reddit</div>
-      <div class="quick-link" onclick="goTo('https://www.twitter.com')">🐦 Twitter</div>
-      <div class="quick-link" onclick="goTo('https://discord.com/app')">💬 Discord</div>
-      <div class="quick-link" onclick="goTo('https://www.google.com')">🔍 Google</div>
-      <div class="quick-link" onclick="goTo('https://www.twitch.tv')">🎮 Twitch</div>
-      <div class="quick-link" onclick="goTo('https://www.spotify.com')">🎵 Spotify</div>
-      <div class="quick-link" onclick="goTo('https://www.netflix.com')">🎬 Netflix</div>
+    <div class="ql-header">
+      <span class="ql-label">Quick access</span>
+      <button class="ql-edit-btn" onclick="openQLModal()">✏️ Edit</button>
     </div>
+    <div id="quick-links"></div>
 
     <p id="status"></p>
   </div>
 
-  <div class="features">
-    <div class="feature"><span>🔒</span> Scramjet powered</div>
-    <div class="feature"><span>⚡</span> Wisp transport</div>
-    <div class="feature"><span>🌍</span> Bypasses filters</div>
-    <div class="feature"><span>🚫</span> No logs</div>
+  <div id="features">
+    <div class="feature">⚡ Scramjet powered</div>
+    <div class="feature">🌍 Bypasses filters</div>
+    <div class="feature">🔒 Encrypted transport</div>
+    <div class="feature">🚫 No logs</div>
   </div>
 </div>
 
-<footer>NexProxy · Powered by Scramjet &amp; Wisp</footer>
+<footer id="footer-text">NexProxy · Powered by Scramjet &amp; Wisp</footer>
 
+<!-- ═══ SETTINGS PANEL ═══ -->
+<div id="settings-overlay" onclick="closeSettings()"></div>
+<div id="settings-panel">
+  <div class="panel-header">
+    <span class="panel-title">✨ Personalize</span>
+    <button id="close-settings" onclick="closeSettings()">✕</button>
+  </div>
+
+  <!-- Site Name -->
+  <div class="s-section">
+    <div class="s-label">Site Name</div>
+    <input class="s-input" id="s-name" placeholder="NexProxy" maxlength="24"/>
+  </div>
+
+  <!-- Icon -->
+  <div class="s-section">
+    <div class="s-label">Icon</div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+      <span class="ql-chip icon-opt" style="font-size:1.2rem;cursor:pointer" data-icon="🌐">🌐</span>
+      <span class="ql-chip icon-opt" style="font-size:1.2rem;cursor:pointer" data-icon="🚀">🚀</span>
+      <span class="ql-chip icon-opt" style="font-size:1.2rem;cursor:pointer" data-icon="🔮">🔮</span>
+      <span class="ql-chip icon-opt" style="font-size:1.2rem;cursor:pointer" data-icon="⚡">⚡</span>
+      <span class="ql-chip icon-opt" style="font-size:1.2rem;cursor:pointer" data-icon="🛸">🛸</span>
+      <span class="ql-chip icon-opt" style="font-size:1.2rem;cursor:pointer" data-icon="🌊">🌊</span>
+      <span class="ql-chip icon-opt" style="font-size:1.2rem;cursor:pointer" data-icon="🎯">🎯</span>
+      <span class="ql-chip icon-opt" style="font-size:1.2rem;cursor:pointer" data-icon="💎">💎</span>
+    </div>
+  </div>
+
+  <!-- Tagline -->
+  <div class="s-section">
+    <div class="s-label">Tagline</div>
+    <input class="s-input" id="s-tagline" placeholder="Browse Without Limits" maxlength="40"/>
+  </div>
+
+  <div class="s-divider"></div>
+
+  <!-- Color theme -->
+  <div class="s-section">
+    <div class="s-label">Color Theme</div>
+    <div class="color-grid">
+      <div class="color-swatch active" data-accent="#6c63ff" data-accent2="#a78bfa" style="background:linear-gradient(135deg,#6c63ff,#a78bfa)"></div>
+      <div class="color-swatch" data-accent="#06b6d4" data-accent2="#67e8f9" style="background:linear-gradient(135deg,#06b6d4,#67e8f9)"></div>
+      <div class="color-swatch" data-accent="#f43f5e" data-accent2="#fb7185" style="background:linear-gradient(135deg,#f43f5e,#fb7185)"></div>
+      <div class="color-swatch" data-accent="#f59e0b" data-accent2="#fcd34d" style="background:linear-gradient(135deg,#f59e0b,#fcd34d)"></div>
+      <div class="color-swatch" data-accent="#10b981" data-accent2="#34d399" style="background:linear-gradient(135deg,#10b981,#34d399)"></div>
+      <div class="color-swatch" data-accent="#ec4899" data-accent2="#f0abfc" style="background:linear-gradient(135deg,#ec4899,#f0abfc)"></div>
+      <div class="color-swatch-custom" title="Custom color">
+        <input type="color" id="custom-color-input" value="#6c63ff" title="Pick a custom color"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Background -->
+  <div class="s-section">
+    <div class="s-label">Background</div>
+    <div class="bg-pills">
+      <span class="bg-pill active" data-bg="orbs">🔮 Orbs</span>
+      <span class="bg-pill" data-bg="stars">✨ Stars</span>
+      <span class="bg-pill" data-bg="waves">🌊 Waves</span>
+      <span class="bg-pill" data-bg="grid">⬛ Grid</span>
+      <span class="bg-pill" data-bg="solid">◼ Solid</span>
+    </div>
+  </div>
+
+  <div class="s-divider"></div>
+
+  <!-- Search Engine -->
+  <div class="s-section">
+    <div class="s-label">Search Engine</div>
+    <div class="se-pills">
+      <span class="se-pill active" data-se="google" data-url="https://www.google.com/search?q=">🔍 Google</span>
+      <span class="se-pill" data-se="bing" data-url="https://www.bing.com/search?q=">🔵 Bing</span>
+      <span class="se-pill" data-se="ddg" data-url="https://duckduckgo.com/?q=">🦆 DuckDuckGo</span>
+      <span class="se-pill" data-se="brave" data-url="https://search.brave.com/search?q=">🦁 Brave</span>
+    </div>
+  </div>
+
+  <div class="s-divider"></div>
+
+  <!-- Toggles -->
+  <div class="s-section">
+    <div class="s-label">Display</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Show feature badges</span>
+      <div class="toggle on" id="toggle-badges" onclick="toggleSetting('badges')"></div>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">Show footer</span>
+      <div class="toggle on" id="toggle-footer" onclick="toggleSetting('footer')"></div>
+    </div>
+  </div>
+
+  <div class="s-divider"></div>
+
+  <!-- Save -->
+  <button class="s-save-btn" onclick="saveSettings()">💾 Save & Apply</button>
+  <button class="s-reset-btn" onclick="resetSettings()">↺ Reset to defaults</button>
+</div>
+
+<!-- Quick Links Edit Modal -->
+<div id="ql-modal-overlay" onclick="closeQLModal()">
+  <div id="ql-modal" onclick="event.stopPropagation()">
+    <div class="panel-header" style="margin-bottom:1.2rem">
+      <span class="panel-title">✏️ Edit Quick Links</span>
+      <button id="close-ql-modal" class="s-input" style="width:auto;padding:.3rem .7rem;cursor:pointer" onclick="closeQLModal()">✕</button>
+    </div>
+    <div id="ql-editor-list"></div>
+    <button class="s-btn" onclick="addQLRow()" style="margin-bottom:.8rem">+ Add Link</button>
+    <button class="s-save-btn" onclick="saveQLModal()">💾 Save Links</button>
+  </div>
+</div>
+
+<!-- ═══ SCRIPTS ═══ -->
 <script>
-  const statusEl = document.getElementById("status");
-  const inputEl  = document.getElementById("url-input");
+"use strict";
 
-  // ── Scramjet controller init ──────────────────────────────────────────────
-  const { ScramjetController } = $scramjetLoadController();
+/* ─── Default Settings ─────────────────────────────── */
+const DEFAULTS = {
+  name: "NexProxy",
+  icon: "🌐",
+  tagline: "Browse Without Limits",
+  subtitle: "Fast, private, and permanent. Enter any URL or search below.",
+  accent: "#6c63ff",
+  accent2: "#a78bfa",
+  bg: "orbs",
+  se: "google",
+  seUrl: "https://www.google.com/search?q=",
+  showBadges: true,
+  showFooter: true,
+  quickLinks: [
+    { emoji: "▶", name: "YouTube",  url: "https://www.youtube.com"   },
+    { emoji: "📋", name: "Reddit",   url: "https://www.reddit.com"    },
+    { emoji: "🐦", name: "Twitter",  url: "https://twitter.com"       },
+    { emoji: "💬", name: "Discord",  url: "https://discord.com/app"   },
+    { emoji: "🔍", name: "Google",   url: "https://www.google.com"    },
+    { emoji: "🎮", name: "Twitch",   url: "https://www.twitch.tv"     },
+    { emoji: "🎵", name: "Spotify",  url: "https://www.spotify.com"   },
+    { emoji: "🎬", name: "Netflix",  url: "https://www.netflix.com"   },
+  ]
+};
 
-  const scramjet = new ScramjetController({
-    prefix: "/scramjet/",
-    files: {
-      wasm:   "/scram/scramjet.wasm.wasm",
-      all:    "/scram/scramjet.all.js",
-      sync:   "/scram/scramjet.sync.js",
-      worker: "/scram/scramjet.worker.js",
-    },
-    codec: {
-      encode: (url) => encodeURIComponent(url),
-      decode: (url) => decodeURIComponent(url),
-    },
+let cfg = structuredClone(DEFAULTS);
+
+/* ─── Load / Save settings ─────────────────────────── */
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem("nexproxy_cfg");
+    if (raw) cfg = { ...DEFAULTS, ...JSON.parse(raw) };
+  } catch {}
+}
+
+function saveSettings() {
+  // Pull values from settings panel
+  const name = document.getElementById("s-name").value.trim() || DEFAULTS.name;
+  const tagline = document.getElementById("s-tagline").value.trim() || DEFAULTS.tagline;
+
+  const activeIcon  = document.querySelector(".icon-opt.active-icon");
+  const icon = activeIcon ? activeIcon.dataset.icon : cfg.icon;
+
+  cfg.name    = name;
+  cfg.icon    = icon;
+  cfg.tagline = tagline;
+
+  localStorage.setItem("nexproxy_cfg", JSON.stringify(cfg));
+  applySettings();
+  closeSettings();
+  showToast("Settings saved! ✨");
+}
+
+function resetSettings() {
+  cfg = structuredClone(DEFAULTS);
+  localStorage.removeItem("nexproxy_cfg");
+  applySettings();
+  populatePanel();
+  showToast("Reset to defaults");
+}
+
+/* ─── Apply Settings ───────────────────────────────── */
+function applySettings() {
+  const root = document.documentElement;
+
+  // Parse color to RGB
+  function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return `${r},${g},${b}`;
+  }
+
+  root.style.setProperty("--accent",  cfg.accent);
+  root.style.setProperty("--accent2", cfg.accent2);
+  root.style.setProperty("--accentRGB", hexToRgb(cfg.accent));
+
+  // Background
+  document.body.className = `bg-${cfg.bg}`;
+
+  // Stars: generate if needed
+  if (cfg.bg === "stars") generateStars();
+
+  // Text
+  document.getElementById("site-name-display").textContent = cfg.name;
+  document.getElementById("site-icon-display").textContent  = cfg.icon;
+  document.getElementById("tagline-display").textContent    = cfg.tagline;
+  document.title = cfg.name;
+
+  // Badges
+  document.getElementById("features").style.display = cfg.showBadges ? "flex" : "none";
+
+  // Footer
+  document.getElementById("footer-text").style.display = cfg.showFooter ? "block" : "none";
+
+  // Quick links
+  renderQuickLinks();
+}
+
+/* ─── Stars generator ──────────────────────────────── */
+let starsGenerated = false;
+function generateStars() {
+  if (starsGenerated) return;
+  starsGenerated = true;
+  const layer = document.getElementById("stars-layer");
+  const count = 200;
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement("div");
+    s.className = "star";
+    const size = Math.random() * 2.5 + .5;
+    s.style.cssText = `
+      width:${size}px;height:${size}px;
+      left:${Math.random()*100}%;top:${Math.random()*100}%;
+      --dur:${Math.random()*4+2}s;
+      --del:-${Math.random()*6}s;
+      --lo:${Math.random()*.3+.05};
+      --hi:${Math.random()*.5+.4};
+    `;
+    layer.appendChild(s);
+  }
+}
+
+/* ─── Quick Links ──────────────────────────────────── */
+function renderQuickLinks() {
+  const container = document.getElementById("quick-links");
+  container.innerHTML = "";
+  (cfg.quickLinks || []).forEach(ql => {
+    const el = document.createElement("div");
+    el.className = "ql-chip";
+    el.innerHTML = `<span>${ql.emoji}</span><span>${ql.name}</span>`;
+    el.onclick = () => goTo(ql.url);
+    container.appendChild(el);
+  });
+}
+
+/* ─── Quick Links Modal ───────────────────────────── */
+let tempQL = [];
+function openQLModal() {
+  tempQL = structuredClone(cfg.quickLinks || []);
+  renderQLEditorRows();
+  document.getElementById("ql-modal-overlay").classList.add("open");
+}
+function closeQLModal() {
+  document.getElementById("ql-modal-overlay").classList.remove("open");
+}
+function renderQLEditorRows() {
+  const list = document.getElementById("ql-editor-list");
+  list.innerHTML = "";
+  tempQL.forEach((ql, i) => {
+    const row = document.createElement("div");
+    row.className = "ql-editor-row";
+    row.innerHTML = `
+      <input class="ql-editor-emoji" value="${ql.emoji}" maxlength="2" placeholder="🔗" data-i="${i}" data-field="emoji"/>
+      <input class="ql-editor-name"  value="${ql.name}"  placeholder="Name"          data-i="${i}" data-field="name"/>
+      <input class="ql-editor-url"   value="${ql.url}"   placeholder="https://..."   data-i="${i}" data-field="url"/>
+      <button class="ql-delete-btn" onclick="deleteQLRow(${i})">✕</button>
+    `;
+    row.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("input", e => {
+        tempQL[parseInt(e.target.dataset.i)][e.target.dataset.field] = e.target.value;
+      });
+    });
+    list.appendChild(row);
+  });
+}
+function addQLRow() {
+  tempQL.push({ emoji: "🔗", name: "New Link", url: "https://" });
+  renderQLEditorRows();
+}
+function deleteQLRow(i) {
+  tempQL.splice(i, 1);
+  renderQLEditorRows();
+}
+function saveQLModal() {
+  cfg.quickLinks = tempQL.filter(ql => ql.url && ql.name);
+  localStorage.setItem("nexproxy_cfg", JSON.stringify(cfg));
+  renderQuickLinks();
+  closeQLModal();
+  showToast("Quick links saved!");
+}
+
+/* ─── Settings Panel ───────────────────────────────── */
+function openSettings() {
+  populatePanel();
+  document.getElementById("settings-overlay").classList.add("open");
+  document.getElementById("settings-panel").classList.add("open");
+}
+function closeSettings() {
+  document.getElementById("settings-overlay").classList.remove("open");
+  document.getElementById("settings-panel").classList.remove("open");
+}
+document.getElementById("settings-btn").addEventListener("click", openSettings);
+
+function populatePanel() {
+  document.getElementById("s-name").value    = cfg.name;
+  document.getElementById("s-tagline").value = cfg.tagline;
+
+  // Icons
+  document.querySelectorAll(".icon-opt").forEach(el => {
+    el.classList.toggle("active-icon", el.dataset.icon === cfg.icon);
+    el.style.borderColor = el.dataset.icon === cfg.icon ? "var(--accent)" : "";
+  });
+  document.querySelectorAll(".icon-opt").forEach(el => {
+    el.onclick = () => {
+      document.querySelectorAll(".icon-opt").forEach(x => {
+        x.classList.remove("active-icon");
+        x.style.borderColor = "";
+      });
+      el.classList.add("active-icon");
+      el.style.borderColor = "var(--accent)";
+    };
   });
 
-  // ── Register service worker and init transport ────────────────────────────
-  async function boot() {
+  // Colors
+  document.querySelectorAll(".color-swatch").forEach(el => {
+    el.classList.toggle("active", el.dataset.accent === cfg.accent);
+    el.onclick = () => {
+      document.querySelectorAll(".color-swatch").forEach(x => x.classList.remove("active"));
+      el.classList.add("active");
+      cfg.accent  = el.dataset.accent;
+      cfg.accent2 = el.dataset.accent2;
+      applySettings();
+    };
+  });
+
+  // Custom color
+  document.getElementById("custom-color-input").addEventListener("input", e => {
+    cfg.accent  = e.target.value;
+    cfg.accent2 = e.target.value + "cc";
+    document.querySelectorAll(".color-swatch").forEach(x => x.classList.remove("active"));
+    applySettings();
+  });
+
+  // BG
+  document.querySelectorAll(".bg-pill").forEach(el => {
+    el.classList.toggle("active", el.dataset.bg === cfg.bg);
+    el.onclick = () => {
+      document.querySelectorAll(".bg-pill").forEach(x => x.classList.remove("active"));
+      el.classList.add("active");
+      cfg.bg = el.dataset.bg;
+      applySettings();
+    };
+  });
+
+  // Search engine
+  document.querySelectorAll(".se-pill").forEach(el => {
+    el.classList.toggle("active", el.dataset.se === cfg.se);
+    el.onclick = () => {
+      document.querySelectorAll(".se-pill").forEach(x => x.classList.remove("active"));
+      el.classList.add("active");
+      cfg.se    = el.dataset.se;
+      cfg.seUrl = el.dataset.url;
+    };
+  });
+
+  // Toggles
+  document.getElementById("toggle-badges").classList.toggle("on", cfg.showBadges);
+  document.getElementById("toggle-footer").classList.toggle("on", cfg.showFooter);
+}
+
+function toggleSetting(key) {
+  if (key === "badges") { cfg.showBadges = !cfg.showBadges; applySettings(); populatePanel(); }
+  if (key === "footer") { cfg.showFooter = !cfg.showFooter; applySettings(); populatePanel(); }
+}
+
+/* ─── Toast ────────────────────────────────────────── */
+function showToast(msg) {
+  let t = document.getElementById("toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "toast";
+    t.style.cssText = `
+      position:fixed;bottom:3rem;left:50%;transform:translateX(-50%) translateY(10px);
+      background:rgba(var(--accentRGB),.9);color:#fff;padding:.6rem 1.2rem;
+      border-radius:10px;font-size:.85rem;font-weight:600;z-index:999;
+      opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;
+      backdrop-filter:blur(10px);
+    `;
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = "1"; t.style.transform = "translateX(-50%) translateY(0)";
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(() => {
+    t.style.opacity = "0"; t.style.transform = "translateX(-50%) translateY(10px)";
+  }, 2000);
+}
+
+/* ─── Navigation ───────────────────────────────────── */
+function parseInput(raw) {
+  raw = raw.trim();
+  if (!raw) return null;
+  try { return new URL(raw).href; } catch {}
+  if (/^[a-z0-9\-]+(\.[a-z]{2,})(\/|$)/i.test(raw)) return "https://" + raw;
+  return cfg.seUrl + encodeURIComponent(raw);
+}
+
+let scramjet;
+
+function goNavigate() {
+  const url = parseInput(document.getElementById("url-input").value);
+  if (!url) return;
+  setStatus("🔄 Connecting…", "loading");
+  try {
+    location.href = scramjet.encodeUrl(url);
+  } catch {
+    setStatus("⚠ Proxy not ready yet, please wait…", "error");
+  }
+}
+
+function goTo(url) {
+  document.getElementById("url-input").value = url;
+  goNavigate();
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.className = type || "";
+}
+
+document.getElementById("url-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") goNavigate();
+});
+document.getElementById("go-btn").addEventListener("click", goNavigate);
+
+// "/" shortcut to focus search
+document.addEventListener("keydown", e => {
+  if (e.key === "/" && document.activeElement !== document.getElementById("url-input")) {
+    e.preventDefault();
+    document.getElementById("url-input").focus();
+  }
+});
+
+/* ─── Scramjet Boot ────────────────────────────────── */
+async function boot() {
+  try {
+    if (!("serviceWorker" in navigator)) {
+      setStatus("⚠ Needs HTTPS for full proxy features.", "error");
+      return;
+    }
+
+    const { ScramjetController } = $scramjetLoadController();
+    scramjet = new ScramjetController({
+      prefix: "/scramjet/",
+      files: {
+        wasm:   "/scram/scramjet.wasm.wasm",
+        all:    "/scram/scramjet.all.js",
+        sync:   "/scram/scramjet.sync.js",
+      },
+      codec: {
+        encode: (url) => encodeURIComponent(url),
+        decode: (url) => decodeURIComponent(url),
+      },
+    });
+
+    await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    await scramjet.init("/sw.js");
+
+    // Transport setup
     try {
-      // Register service worker
-      if (!("serviceWorker" in navigator)) {
-        setStatus("⚠ Service Workers not supported. You need HTTPS.", "error");
-        return;
-      }
-
-      const sw = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-
-      // Wait for SW to be active
-      await new Promise((resolve) => {
-        if (sw.active) return resolve();
-        sw.installing?.addEventListener("statechange", (e) => {
-          if (e.target.state === "activated") resolve();
-        });
-        sw.waiting?.addEventListener("statechange", (e) => {
-          if (e.target.state === "activated") resolve();
-        });
-      });
-
-      // Init Scramjet with the SW
-      await scramjet.init("/sw.js");
-
-      // Set up bare-mux with wisp transport
       const { BareMuxConnection } = await import("/baremux/index.js");
       const conn = new BareMuxConnection("/baremux/worker.js");
+      const wsProto = location.protocol === "https:" ? "wss" : "ws";
       await conn.setTransport("/libcurl/index.js", [
-        { wisp: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/` },
+        { wisp: `${wsProto}://${location.host}/wisp/` }
       ]);
-
-      setStatus("✓ Proxy ready", "ready");
-    } catch (err) {
-      console.error("Boot error:", err);
-      // Fallback: try without libcurl transport
+    } catch {
+      // libcurl fallback
       try {
         const { BareMuxConnection } = await import("/baremux/index.js");
         const conn = new BareMuxConnection("/baremux/worker.js");
+        const wsProto = location.protocol === "https:" ? "wss" : "ws";
         await conn.setTransport("/baremux/bare.js", [
-          `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/`,
+          `${wsProto}://${location.host}/wisp/`
         ]);
-        setStatus("✓ Proxy ready (basic mode)", "ready");
-      } catch (err2) {
-        console.error("Fallback error:", err2);
-        setStatus("✓ Proxy ready (offline mode)", "ready");
-      }
+      } catch {}
     }
+
+    setStatus("✓ Proxy ready — Press / to focus search", "ready");
+  } catch (err) {
+    console.error(err);
+    setStatus("⚠ Proxy unavailable on HTTP. Deploy for full features.", "error");
   }
+}
 
-  // ── URL parsing ───────────────────────────────────────────────────────────
-  function parseInput(raw) {
-    raw = raw.trim();
-    if (!raw) return null;
-    try {
-      return new URL(raw).href;
-    } catch (_) {}
-    if (/^[a-z0-9\-]+(\.[a-z]{2,})(\/|$)/i.test(raw)) {
-      return "https://" + raw;
-    }
-    return "https://www.google.com/search?q=" + encodeURIComponent(raw);
-  }
-
-  // ── Navigate ──────────────────────────────────────────────────────────────
-  function goNavigate() {
-    const url = parseInput(inputEl.value);
-    if (!url) return;
-    setStatus("🔄 Connecting…", "loading");
-    location.href = scramjet.encodeUrl(url);
-  }
-
-  function goTo(url) {
-    inputEl.value = url;
-    goNavigate();
-  }
-
-  function setStatus(msg, type) {
-    statusEl.textContent = msg;
-    statusEl.className   = type || "";
-  }
-
-  // Enter key
-  inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") goNavigate();
-  });
-
-  boot();
+/* ─── Init ─────────────────────────────────────────── */
+loadSettings();
+applySettings();
+boot();
 </script>
-
 </body>
 </html>
